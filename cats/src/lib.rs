@@ -123,7 +123,7 @@ static CONTEXT: LazyLock<Plugin> = LazyLock::new(|| Plugin {
 });
 
 impl Guest for Plugin {
-    fn registrations(
+    async fn registrations(
         mut settings: Vec<u8>,
         supported_registrations: SupportedRegistrations,
     ) -> Result<RegistrationsResponse, String> {
@@ -224,11 +224,11 @@ impl Guest for Plugin {
         })
     }
 
-    fn shutdown() -> Result<(), _rt::String> {
+    async fn shutdown() -> Result<(), _rt::String> {
         todo!();
     }
 
-    fn discord_event(event: DiscordEvents) -> Result<(), String> {
+    async fn discord_event(event: DiscordEvents) -> Result<(), String> {
         match event {
             DiscordEvents::InteractionCreate(mut interaction) => {
                 let interaction =
@@ -237,7 +237,7 @@ impl Guest for Plugin {
                 match interaction.data.as_ref() {
                     Some(InteractionData::ApplicationCommand(command_data)) => {
                         match command_data.name.as_str() {
-                            "cat" => CONTEXT.cat_command(interaction),
+                            "cat" => CONTEXT.cat_command(interaction).await,
                             &_ => unimplemented!(),
                         }
                     }
@@ -257,20 +257,20 @@ impl Guest for Plugin {
         }
     }
 
-    fn scheduled_job(job: String) -> Result<(), String> {
+    async fn scheduled_job(job: String) -> Result<(), String> {
         match job.as_str() {
             "automated_cat" => CONTEXT.automated_cat(),
             &_ => unimplemented!(),
         }
     }
 
-    fn dependency(function: String, params: Vec<u8>) -> Result<Vec<u8>, String> {
+    async fn dependency(function: String, params: Vec<u8>) -> Result<Vec<u8>, String> {
         todo!();
     }
 }
 
 impl Plugin {
-    fn cat_command(&self, mut interaction: Box<InteractionCreate>) -> Result<(), String> {
+    async fn cat_command(&self, mut interaction: Box<InteractionCreate>) -> Result<(), String> {
         let mut discord_requests = vec![];
 
         match interaction.data.as_mut().unwrap() {
@@ -285,7 +285,7 @@ impl Plugin {
                     None => None,
                 };
 
-                match self.http_client.request_cat(id) {
+                match self.http_client.request_cat(id).await {
                     Ok(mut cat_response) => {
                         let interaction_response_data = InteractionResponseData {
                             allowed_mentions: None,

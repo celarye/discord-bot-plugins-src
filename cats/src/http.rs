@@ -1,7 +1,10 @@
 use std::env;
 
 use serde::Deserialize;
-use waki::Client;
+use wstd::{
+    http::{Client, Request},
+    io::empty,
+};
 
 use crate::CONTEXT;
 
@@ -83,7 +86,7 @@ impl HttpClient {
         }
     }
 
-    pub fn request_cat(&self, id: Option<String>) -> Result<Vec<CatResponse>, String> {
+    pub async fn request_cat(&self, id: Option<String>) -> Result<Vec<CatResponse>, String> {
         CONTEXT.stats.write().unwrap().total_cats_requested += 1;
 
         let mut uri = String::from("https://api.thecatapi.com/v1/images/");
@@ -93,12 +96,12 @@ impl HttpClient {
             None => uri.push_str("search"),
         }
 
-        let request = self
-            .client
-            .get(&uri)
-            .header("x-api-key", env::var("API_KEY").unwrap());
+        let request = Request::get(&uri)
+            .header("x-api-key", env::var("API_KEY").unwrap())
+            .body(empty())
+            .unwrap();
 
-        let response = match request.send() {
+        let response = match self.client.send(request).await {
             Ok(response) => response,
             Err(err) => {
                 return Err(format!(
@@ -108,14 +111,14 @@ impl HttpClient {
             }
         };
 
-        if response.status_code() != 200 {
+        if response.status() != 200 {
             return Err(format!(
                 "The HTTP response returned an unwanted status code: {}",
-                &response.status_code(),
+                &response.status(),
             ));
         }
 
-        let mut response_body = match response.body() {
+        let mut response_body = match response.into_body().bytes().await {
             Ok(response_body) => response_body,
             Err(err) => {
                 return Err(format!(
