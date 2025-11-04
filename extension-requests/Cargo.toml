@@ -1,0 +1,14 @@
+[package]
+name = "extension-requests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+simd-json = "0.17"
+twilight-model = "0.16"
+url = "2"
+wit-bindgen = "0.47"
+
+[lib]
+crate-type = ["cdylib"]
