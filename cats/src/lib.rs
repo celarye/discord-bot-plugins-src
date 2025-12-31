@@ -34,12 +34,11 @@ use crate::{
         discord_types::Requests as DiscordRequests,
         host_functions::discord_request,
         plugin_types::{
-            RegistrationsResponseDiscordEvents, RegistrationsResponseDiscordEventsInteractionCreate,
+            RegistrationsRequest, RegistrationsRequestDiscordEvents,
+            RegistrationsRequestInteractionCreate, SupportedRegistrations,
         },
     },
-    exports::discord_bot::plugin::plugin_functions::{
-        DiscordEvents, Guest, RegistrationsResponse, SupportedRegistrations,
-    },
+    exports::discord_bot::plugin::plugin_functions::{DiscordEvents, Guest},
 };
 
 // Define a custom srtuct and implement the generated `Guest` trait for it which
@@ -126,10 +125,10 @@ static CONTEXT: LazyLock<Plugin> = LazyLock::new(|| Plugin {
 });
 
 impl Guest for Plugin {
-    fn registrations(
+    fn initialization(
         mut settings: Vec<u8>,
         supported_registrations: SupportedRegistrations,
-    ) -> Result<RegistrationsResponse, String> {
+    ) -> Result<RegistrationsRequest, String> {
         if env::var("API_KEY").is_err() {
             return Err(String::from(
                 "The API_KEY environment variable was not provided",
@@ -150,9 +149,11 @@ impl Guest for Plugin {
 
         let mut commands = vec![];
 
-        if supported_registrations.discord_events.interaction_create && settings.cats_on_demand {
-            commands.push((
-                String::from("cat"),
+        if supported_registrations
+            .contains(SupportedRegistrations::DISCORD_EVENT_INTERACTION_CREATE)
+            && settings.cats_on_demand
+        {
+            commands.push(
                 simd_json::to_vec(&Command {
                     application_id: None,
                     contexts: Some(vec![
@@ -194,7 +195,7 @@ impl Guest for Plugin {
                     version: Id::new(1),
                 })
                 .unwrap(),
-            ));
+            );
         }
 
         let mut scheduled_jobs = HashMap::new();
@@ -210,14 +211,15 @@ impl Guest for Plugin {
                 .push(automated_cat.cron);
         }
 
-        Ok(RegistrationsResponse {
-            discord_events: RegistrationsResponseDiscordEvents {
-                interaction_create: RegistrationsResponseDiscordEventsInteractionCreate {
+        Ok(RegistrationsRequest {
+            discord_events: RegistrationsRequestDiscordEvents {
+                interaction_create: RegistrationsRequestInteractionCreate {
                     application_commands: commands,
                     message_components: vec![],
                     modals: vec![],
                 },
-                message_create: supported_registrations.discord_events.message_create
+                message_create: supported_registrations
+                    .contains(SupportedRegistrations::DISCORD_EVENT_MESSAGE_CREATE)
                     && settings.cat_message_response_chance != 0,
                 thread_create: false,
                 thread_delete: false,
@@ -244,7 +246,10 @@ impl Guest for Plugin {
                 match interaction.data.as_ref() {
                     Some(InteractionData::ApplicationCommand(command_data)) => {
                         match command_data.name.as_str() {
-                            "cat" => CONTEXT.cat_command(interaction),
+                            "cat" => {
+                                CONTEXT.cat_command(interaction);
+                                Ok(())
+                            }
                             &_ => unimplemented!(),
                         }
                     }
@@ -271,13 +276,13 @@ impl Guest for Plugin {
         }
     }
 
-    fn dependency(_function: String, _params: Vec<u8>) -> Result<Vec<u8>, String> {
+    fn dependency_function(_function: String, _params: Vec<u8>) -> Result<Vec<u8>, String> {
         todo!();
     }
 }
 
 impl Plugin {
-    fn cat_command(&self, mut interaction: Box<InteractionCreate>) -> Result<(), String> {
+    fn cat_command(&self, mut interaction: Box<InteractionCreate>) {
         let mut discord_requests = vec![];
 
         match interaction.data.as_mut().unwrap() {
@@ -315,6 +320,7 @@ impl Plugin {
                         discord_requests.push(DiscordRequests::InteractionCallback((
                             interaction.id.get(),
                             interaction.token.clone(),
+                            true,
                             simd_json::to_vec(&interaction_response).unwrap(),
                         )));
                     }
@@ -344,6 +350,7 @@ impl Plugin {
                         discord_requests.push(DiscordRequests::InteractionCallback((
                             interaction.id.get(),
                             interaction.token.clone(),
+                            true,
                             simd_json::to_vec(&interaction_response).unwrap(),
                         )));
                     }
@@ -355,8 +362,6 @@ impl Plugin {
         for request in discord_requests {
             let _ = discord_request(&request);
         }
-
-        Ok(())
     }
 
     fn cat_message(&self, _message: Box<MessageCreate>) -> Result<(), String> {

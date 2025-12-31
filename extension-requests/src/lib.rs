@@ -41,12 +41,11 @@ use crate::{
         discord_types::Requests,
         host_functions::discord_request,
         plugin_types::{
-            RegistrationsResponseDiscordEvents, RegistrationsResponseDiscordEventsInteractionCreate,
+            RegistrationsRequest, RegistrationsRequestDiscordEvents,
+            RegistrationsRequestInteractionCreate, SupportedRegistrations,
         },
     },
-    exports::discord_bot::plugin::plugin_functions::{
-        DiscordEvents, Guest, RegistrationsResponse, SupportedRegistrations,
-    },
+    exports::discord_bot::plugin::plugin_functions::{DiscordEvents, Guest},
 };
 
 struct Plugin {
@@ -95,11 +94,13 @@ static CONTEXT: LazyLock<Plugin> = LazyLock::new(|| Plugin {
 });
 
 impl Guest for Plugin {
-    fn registrations(
+    fn initialization(
         mut settings: Vec<u8>,
         supported_registrations: SupportedRegistrations,
-    ) -> Result<RegistrationsResponse, String> {
-        if !supported_registrations.discord_events.interaction_create {
+    ) -> Result<RegistrationsRequest, String> {
+        if !supported_registrations
+            .contains(SupportedRegistrations::DISCORD_EVENT_INTERACTION_CREATE)
+        {
             return Err(String::from(
                 "This plugin requires the interactionCreate event to be enabled.",
             ));
@@ -162,8 +163,7 @@ impl Guest for Plugin {
 
         CONTEXT.settings.write().unwrap().tags = settings.tags;
 
-        let commands = vec![(
-            String::from("request-extension"),
+        let commands = vec![
             simd_json::to_vec(&Command {
                 application_id: None,
                 contexts: Some(vec![InteractionContextType::Guild]),
@@ -183,11 +183,11 @@ impl Guest for Plugin {
                 version: Id::new(1),
             })
             .unwrap(),
-        )];
+        ];
 
-        Ok(RegistrationsResponse {
-            discord_events: RegistrationsResponseDiscordEvents {
-                interaction_create: RegistrationsResponseDiscordEventsInteractionCreate {
+        Ok(RegistrationsRequest {
+            discord_events: RegistrationsRequestDiscordEvents {
+                interaction_create: RegistrationsRequestInteractionCreate {
                     application_commands: commands,
                     message_components: vec![],
                     modals: vec![String::from("extension-request")],
@@ -239,7 +239,7 @@ impl Guest for Plugin {
         unimplemented!();
     }
 
-    fn dependency(_function: String, _params: Vec<u8>) -> Result<Vec<u8>, String> {
+    fn dependency_function(_function: String, _params: Vec<u8>) -> Result<Vec<u8>, String> {
         unimplemented!();
     }
 }
@@ -351,6 +351,7 @@ impl Plugin {
             &discord_bot::plugin::discord_types::Requests::InteractionCallback((
                 interaction_create.id.get(),
                 interaction_create.token.clone(),
+                true,
                 simd_json::to_vec(&modal).unwrap(),
             )),
         )?;
@@ -368,6 +369,7 @@ impl Plugin {
         discord_request(&Requests::InteractionCallback((
             interaction_create.id.get(),
             interaction_create.token.clone(),
+            true,
             simd_json::to_vec(&InteractionResponse {
                 kind: InteractionResponseType::DeferredChannelMessageWithSource,
                 data: Some(InteractionResponseData {
@@ -452,7 +454,7 @@ impl Plugin {
         embed.title = Some(String::from("Created Extension Request"));
 
         embed.description = Some(format!(
-            "An extension request had been created: <#{}>",
+            "An extension request has been created: <#{}>",
             extension_request_thread.id
         ));
 

@@ -18,7 +18,6 @@ interface discord-types {
     /// [Gateway Send Event]: https://discord.com/developers/docs/events/gateway-events#send-events
     /// [Message Resource]: https://discord.com/developers/docs/resources/message
     variant requests {
-        // TODO: Implement response events
         request-guild-members(tuple<u64, list<u8>>),
         request-soundboard-sounds(list<u64>),
         update-voice-state(tuple<u64, list<u8>>),
@@ -36,7 +35,7 @@ interface discord-types {
         get-public-archived-threads(tuple<option<string>, u64, option<u64>>),
         get-thread-member(tuple<u64, u64>),
         get-thread-members(tuple<option<u64>, u64, option<u32>, option<bool>>),
-        interaction-callback(tuple<u64, string, list<u8>>),
+        interaction-callback(tuple<u64, string, bool, list<u8>>),
         join-thread(u64),
         leave-thread(u64),
         remove-thread-member(tuple<u64, u64>),
