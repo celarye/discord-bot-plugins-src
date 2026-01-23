@@ -27,7 +27,7 @@ use http::HttpClient;
 
 // Use a procedural macro to generate bindings for the world we specified in
 // `../wit/world.wit`
-wit_bindgen::generate!();
+wit_bindgen::generate!({ path: "../wit" });
 
 use crate::{
     discord_bot::plugin::{

@@ -8,22 +8,22 @@ use twilight_model::{
     application::{
         command::{Command, CommandType},
         interaction::{
-            InteractionContextType, InteractionData,
             modal::{
                 ModalInteractionComponent, ModalInteractionStringSelect, ModalInteractionTextInput,
             },
+            InteractionContextType, InteractionData,
         },
     },
     channel::{
-        Channel, ChannelType,
         message::{
-            AllowedMentions, Component, Embed, EmojiReactionType, MentionType, MessageFlags,
             component::{
                 Label, SelectMenu, SelectMenuOption, SelectMenuType, TextInput, TextInputStyle,
             },
             embed::EmbedFooter,
+            AllowedMentions, Component, Embed, EmojiReactionType, MentionType, MessageFlags,
         },
         thread::ThreadsListing,
+        Channel, ChannelType,
     },
     gateway::payload::incoming::InteractionCreate,
     guild::Permissions,
@@ -34,7 +34,7 @@ use twilight_model::{
 };
 use url::Url;
 
-wit_bindgen::generate!();
+wit_bindgen::generate!({ path: "../wit" });
 
 use crate::{
     discord_bot::plugin::{
@@ -163,27 +163,25 @@ impl Guest for Plugin {
 
         CONTEXT.settings.write().unwrap().tags = settings.tags;
 
-        let commands = vec![
-            simd_json::to_vec(&Command {
-                application_id: None,
-                contexts: Some(vec![InteractionContextType::Guild]),
-                default_member_permissions: Some(Permissions::SEND_MESSAGES),
-                #[allow(deprecated)]
-                dm_permission: None,
-                description: String::from("Request a Paperback extension"),
-                description_localizations: None,
-                guild_id: Some(channel.guild_id.unwrap()),
-                id: None,
-                integration_types: Some(vec![ApplicationIntegrationType::GuildInstall]),
-                kind: CommandType::ChatInput,
-                name: String::from("request-extension"),
-                name_localizations: None,
-                nsfw: Some(false),
-                options: vec![],
-                version: Id::new(1),
-            })
-            .unwrap(),
-        ];
+        let commands = vec![simd_json::to_vec(&Command {
+            application_id: None,
+            contexts: Some(vec![InteractionContextType::Guild]),
+            default_member_permissions: Some(Permissions::SEND_MESSAGES),
+            #[allow(deprecated)]
+            dm_permission: None,
+            description: String::from("Request a Paperback extension"),
+            description_localizations: None,
+            guild_id: Some(channel.guild_id.unwrap()),
+            id: None,
+            integration_types: Some(vec![ApplicationIntegrationType::GuildInstall]),
+            kind: CommandType::ChatInput,
+            name: String::from("request-extension"),
+            name_localizations: None,
+            nsfw: Some(false),
+            options: vec![],
+            version: Id::new(1),
+        })
+        .unwrap()];
 
         Ok(RegistrationsRequest {
             discord_events: RegistrationsRequestDiscordEvents {
