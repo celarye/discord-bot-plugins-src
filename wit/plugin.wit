@@ -8,13 +8,13 @@ interface plugin-types {
     /// scheduled-jobs: tuple entry 0 is the id and entry 1 is a list of cron
     /// values.
     record registrations-request {
-        discord-events: registrations-request-discord-events,
-        scheduled-jobs: list<tuple<string, list<string>>>,
-        dependency-functions: list<string>,
+        discord-events: option<registrations-request-discord-events>,
+        scheduled-jobs: option<list<tuple<string, list<string>>>>,
+        dependency-functions: option<list<string>>,
     }
 
     record registrations-request-discord-events {
-        interaction-create: registrations-request-interaction-create,
+        interaction-create: option<registrations-request-interaction-create>,
         message-create: bool,
         thread-create: bool,
         thread-delete: bool,
@@ -29,9 +29,9 @@ interface plugin-types {
     ///
     /// [Discord Application Command docs]: https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-structure
     record registrations-request-interaction-create {
-        application-commands: list<list<u8>>,
-        message-components: list<string>,
-        modals: list<string>,
+        application-commands: option<list<list<u8>>>,
+        message-components: option<list<string>>,
+        modals: option<list<string>>,
     }
 
     flags supported-registrations {
