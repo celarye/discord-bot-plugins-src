@@ -26,7 +26,7 @@ interface discord-types {
 
         // HTTP requests
         add-thread-member(tuple<u64, u64>),
-        create-ban(tuple<u64, u64>),
+        create-ban(tuple<u64, u64, list<u8>>),
         create-forum-thread(tuple<u64, contents>),
         create-message(tuple<u64, contents>),
         create-thread(tuple<u64, list<u8>>),
