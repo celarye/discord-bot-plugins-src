@@ -1,29 +1,30 @@
 use std::{
     sync::{LazyLock, RwLock},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::SystemTime,
 };
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use twilight_http::{Client, request::TryIntoRequest};
 use twilight_model::{
     application::{
         command::{Command, CommandType},
         interaction::{
+            InteractionContextType, InteractionData,
             modal::{
                 ModalInteractionComponent, ModalInteractionStringSelect, ModalInteractionTextInput,
             },
-            InteractionContextType, InteractionData,
         },
     },
     channel::{
+        Channel, ChannelType,
         message::{
+            AllowedMentions, Component, Embed, EmojiReactionType, MentionType, MessageFlags,
             component::{
                 Label, SelectMenu, SelectMenuOption, SelectMenuType, TextInput, TextInputStyle,
             },
             embed::EmbedFooter,
-            AllowedMentions, Component, Embed, EmojiReactionType, MentionType, MessageFlags,
         },
         thread::ThreadsListing,
-        Channel, ChannelType,
     },
     gateway::payload::incoming::InteractionCreate,
     guild::Permissions,
@@ -38,7 +39,7 @@ wit_bindgen::generate!({ path: "../wit" });
 
 use crate::{
     discord_bot::plugin::{
-        discord_types::Requests,
+        discord_types::{Contents, Requests},
         host_functions::discord_request,
         plugin_types::{
             RegistrationsRequest, RegistrationsRequestDiscordEvents,
@@ -64,25 +65,6 @@ struct PluginSettingsTags {
     tracker_service: u64,
 }
 
-#[derive(Serialize)]
-struct CreateMessage {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    allowed_mentions: Option<AllowedMentions>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    content: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    embeds: Option<Vec<Embed>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    flags: Option<MessageFlags>,
-}
-
-#[derive(Serialize)]
-struct CreateForumThread {
-    name: String,
-    message: CreateMessage,
-    applied_tags: Vec<u64>,
-}
-
 static CONTEXT: LazyLock<Plugin> = LazyLock::new(|| Plugin {
     settings: RwLock::new(PluginSettings {
         channel_id: 0,
@@ -95,7 +77,7 @@ static CONTEXT: LazyLock<Plugin> = LazyLock::new(|| Plugin {
 
 impl Guest for Plugin {
     fn initialization(
-        mut settings: Vec<u8>,
+        settings: Vec<u8>,
         supported_registrations: SupportedRegistrations,
     ) -> Result<RegistrationsRequest, String> {
         if !supported_registrations
@@ -106,7 +88,7 @@ impl Guest for Plugin {
             ));
         }
 
-        let settings = match simd_json::from_slice::<PluginSettings>(&mut settings) {
+        let settings = match sonic_rs::from_slice::<PluginSettings>(&settings) {
             Ok(settings) => settings,
             Err(err) => {
                 return Err(format!(
@@ -116,10 +98,10 @@ impl Guest for Plugin {
             }
         };
 
-        let mut get_channel_response =
+        let get_channel_response =
             discord_request(&Requests::GetChannel(settings.channel_id))?.unwrap();
 
-        let channel = match simd_json::from_slice::<Channel>(&mut get_channel_response) {
+        let channel = match sonic_rs::from_slice::<Channel>(&get_channel_response) {
             Ok(channel) => channel,
             Err(err) => {
                 return Err(format!(
@@ -163,33 +145,35 @@ impl Guest for Plugin {
 
         CONTEXT.settings.write().unwrap().tags = settings.tags;
 
-        let commands = vec![simd_json::to_vec(&Command {
-            application_id: None,
-            contexts: Some(vec![InteractionContextType::Guild]),
-            default_member_permissions: Some(Permissions::SEND_MESSAGES),
-            #[allow(deprecated)]
-            dm_permission: None,
-            description: String::from("Request a Paperback extension"),
-            description_localizations: None,
-            guild_id: Some(channel.guild_id.unwrap()),
-            id: None,
-            integration_types: Some(vec![ApplicationIntegrationType::GuildInstall]),
-            kind: CommandType::ChatInput,
-            name: String::from("request-extension"),
-            name_localizations: None,
-            nsfw: Some(false),
-            options: vec![],
-            version: Id::new(1),
-        })
-        .unwrap()];
+        let commands = vec![
+            sonic_rs::to_vec(&Command {
+                application_id: None,
+                contexts: Some(vec![InteractionContextType::Guild]),
+                default_member_permissions: Some(Permissions::SEND_MESSAGES),
+                #[allow(deprecated)]
+                dm_permission: None,
+                description: String::from("Request a Paperback extension"),
+                description_localizations: None,
+                guild_id: Some(channel.guild_id.unwrap()),
+                id: None,
+                integration_types: Some(vec![ApplicationIntegrationType::GuildInstall]),
+                kind: CommandType::ChatInput,
+                name: String::from("request-extension"),
+                name_localizations: None,
+                nsfw: Some(false),
+                options: vec![],
+                version: Id::new(1),
+            })
+            .unwrap(),
+        ];
 
         Ok(RegistrationsRequest {
-            discord_events: RegistrationsRequestDiscordEvents {
-                interaction_create: RegistrationsRequestInteractionCreate {
-                    application_commands: commands,
-                    message_components: vec![],
-                    modals: vec![String::from("extension-request")],
-                },
+            discord_events: Some(RegistrationsRequestDiscordEvents {
+                interaction_create: Some(RegistrationsRequestInteractionCreate {
+                    application_commands: Some(commands),
+                    message_components: None,
+                    modals: Some(vec![String::from("extension-request")]),
+                }),
                 message_create: false,
                 thread_create: false,
                 thread_delete: false,
@@ -197,9 +181,9 @@ impl Guest for Plugin {
                 thread_member_update: false,
                 thread_members_update: false,
                 thread_update: false,
-            },
-            scheduled_jobs: vec![],
-            dependency_functions: vec![],
+            }),
+            scheduled_jobs: None,
+            dependency_functions: None,
         })
     }
 
@@ -209,11 +193,11 @@ impl Guest for Plugin {
 
     fn discord_event(event: DiscordEvents) -> Result<(), String> {
         match event {
-            DiscordEvents::InteractionCreate(mut interaction_create) => {
+            DiscordEvents::InteractionCreate(interaction_create) => {
                 let interaction_create =
-                    simd_json::from_slice::<InteractionCreate>(&mut interaction_create).unwrap();
+                    sonic_rs::from_slice::<InteractionCreate>(&interaction_create).unwrap();
 
-                match interaction_create.data.as_ref() {
+                match &interaction_create.data {
                     Some(InteractionData::ApplicationCommand(command_data)) => {
                         match command_data.name.as_str() {
                             "request-extension" => Plugin::request_extension(&interaction_create),
@@ -350,7 +334,7 @@ impl Plugin {
                 interaction_create.id.get(),
                 interaction_create.token.clone(),
                 true,
-                simd_json::to_vec(&modal).unwrap(),
+                sonic_rs::to_vec(&modal).unwrap(),
             )),
         )?;
 
@@ -368,7 +352,7 @@ impl Plugin {
             interaction_create.id.get(),
             interaction_create.token.clone(),
             true,
-            simd_json::to_vec(&InteractionResponse {
+            sonic_rs::to_vec(&InteractionResponse {
                 kind: InteractionResponseType::DeferredChannelMessageWithSource,
                 data: Some(InteractionResponseData {
                     allowed_mentions: None,
@@ -387,35 +371,11 @@ impl Plugin {
             .unwrap(),
         )))?;
 
-        let mut response_message = CreateMessage {
-            allowed_mentions: Some(AllowedMentions {
-                parse: vec![MentionType::Users],
-                replied_user: false,
-                roles: vec![],
-                users: vec![],
-            }),
-            content: None,
-            embeds: Some(vec![Self::base_embed(interaction_create)]),
-            flags: Some(MessageFlags::EPHEMERAL),
-        };
+        let client = Client::builder().build();
 
-        let Ok(url) = Self::validate_url(
-            response_message
-                .embeds
-                .as_mut()
-                .unwrap()
-                .iter_mut()
-                .next()
-                .unwrap(),
-            &extension_request_website_url.value,
-        ) else {
-            discord_request(
-                &discord_bot::plugin::discord_types::Requests::UpdateInteractionOriginal((
-                    interaction_create.application_id.get(),
-                    interaction_create.token.clone(),
-                    simd_json::to_vec(&response_message).unwrap(),
-                )),
-            )?;
+        let Some(url) =
+            Self::validate_url(interaction_create, &extension_request_website_url.value)?
+        else {
             return Ok(());
         };
 
@@ -425,11 +385,7 @@ impl Plugin {
             extension_request_title += url.path();
         }
 
-        if Self::forum_thread_existance(
-            interaction_create,
-            &extension_request_title,
-            &mut response_message,
-        )? {
+        if Self::forum_thread_existance(&client, interaction_create, &extension_request_title)? {
             return Ok(());
         }
 
@@ -441,13 +397,7 @@ impl Plugin {
             extension_request_reason,
         )?;
 
-        let embed = response_message
-            .embeds
-            .as_mut()
-            .unwrap()
-            .iter_mut()
-            .next()
-            .unwrap();
+        let mut embed = Self::base_embed(interaction_create);
 
         embed.title = Some(String::from("Created Extension Request"));
 
@@ -456,11 +406,27 @@ impl Plugin {
             extension_request_thread.id
         ));
 
-        discord_request(&Requests::UpdateInteractionOriginal((
-            interaction_create.application_id.get(),
-            interaction_create.token.clone(),
-            simd_json::to_vec(&response_message).unwrap(),
-        )))?;
+        let response_message_request = match client
+            .create_message(interaction_create.channel.as_ref().unwrap().id)
+            .flags(MessageFlags::EPHEMERAL)
+            .embeds(&[embed])
+            .try_into_request()
+        {
+            Ok(response_message_request) => response_message_request,
+            Err(err) => {
+                return Err(format!(
+                    "An error occured while building the response message request: {err}"
+                ));
+            }
+        };
+
+        discord_request(
+            &discord_bot::plugin::discord_types::Requests::UpdateInteractionOriginal((
+                interaction_create.application_id.get(),
+                interaction_create.token.clone(),
+                response_message_request.body().unwrap().to_owned(),
+            )),
+        )?;
 
         Ok(())
     }
@@ -572,11 +538,11 @@ impl Plugin {
             timestamp: Some(
                 Timestamp::from_secs(
                     SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or(Duration::new(0, 0))
+                        .elapsed()
+                        .unwrap_or_default()
                         .as_secs()
                         .try_into()
-                        .unwrap_or(0),
+                        .unwrap_or_default(),
                 )
                 .unwrap_or(Timestamp::from_secs(0).unwrap()),
             ),
@@ -587,17 +553,17 @@ impl Plugin {
     }
 
     fn forum_thread_existance(
+        client: &Client,
         interaction_create: &InteractionCreate,
         extension_request_title: &str,
-        response_message: &mut CreateMessage,
     ) -> Result<bool, String> {
-        let mut get_active_threads_response = discord_request(&Requests::GetActiveThreads(
+        let get_active_threads_response = discord_request(&Requests::GetActiveThreads(
             interaction_create.guild_id.unwrap().get(),
         ))?
         .unwrap();
 
         let active_threads =
-            match simd_json::from_slice::<ThreadsListing>(&mut get_active_threads_response) {
+            match sonic_rs::from_slice::<ThreadsListing>(&get_active_threads_response) {
                 Ok(active_threads) => active_threads,
                 Err(err) => return Err(err.to_string()),
             };
@@ -608,13 +574,7 @@ impl Plugin {
                     && t.name.as_ref().unwrap_or(&String::new()) == extension_request_title
             })
         {
-            let embed = response_message
-                .embeds
-                .as_mut()
-                .unwrap()
-                .iter_mut()
-                .next()
-                .unwrap();
+            let mut embed = Self::base_embed(interaction_create);
 
             embed.title = Some(String::from("Extension Request Already Exists"));
 
@@ -623,11 +583,25 @@ impl Plugin {
                 &existing_extension_request_thread.id
             ));
 
+            let response_message_request = match client
+                .create_message(interaction_create.channel.as_ref().unwrap().id)
+                .flags(MessageFlags::EPHEMERAL)
+                .embeds(&[embed])
+                .try_into_request()
+            {
+                Ok(response_message_request) => response_message_request,
+                Err(err) => {
+                    return Err(format!(
+                        "An error occured while building the response message request: {err}"
+                    ));
+                }
+            };
+
             discord_request(
                 &discord_bot::plugin::discord_types::Requests::UpdateInteractionOriginal((
                     interaction_create.application_id.get(),
                     interaction_create.token.clone(),
-                    simd_json::to_vec(&response_message).unwrap(),
+                    response_message_request.body().unwrap().to_owned(),
                 )),
             )?;
 
@@ -644,74 +618,114 @@ impl Plugin {
         extension_request_website_type: &ModalInteractionStringSelect,
         extension_request_reason: &ModalInteractionTextInput,
     ) -> Result<Channel, String> {
-        let mut extension_request_embed = Self::base_embed(interaction_create);
+        let mut embed = Self::base_embed(interaction_create);
 
-        extension_request_embed.title = Some(extension_request_title.clone());
-        extension_request_embed.url = Some(url.to_string());
+        embed.title = Some(extension_request_title.clone());
+        embed.url = Some(url.to_string());
 
         let mut extension_request_tags = vec![];
 
         for website_type in &extension_request_website_type.values {
             match website_type.as_str() {
-                "content-service" => extension_request_tags
-                    .push(CONTEXT.settings.read().unwrap().tags.content_service),
-                "tracker-service" => extension_request_tags
-                    .push(CONTEXT.settings.read().unwrap().tags.tracker_service),
+                "content-service" => extension_request_tags.push(Id::new(
+                    CONTEXT.settings.read().unwrap().tags.content_service,
+                )),
+                "tracker-service" => extension_request_tags.push(Id::new(
+                    CONTEXT.settings.read().unwrap().tags.tracker_service,
+                )),
                 &_ => unreachable!(),
             }
         }
 
-        extension_request_embed.description =
-            Some(format!("**Reason**\n{}", &extension_request_reason.value));
+        embed.description = Some(format!("**Reason**\n{}", &extension_request_reason.value));
 
-        let forum_thead = CreateForumThread {
-            name: extension_request_title,
-            message: CreateMessage {
-                allowed_mentions: Some(AllowedMentions {
-                    parse: vec![MentionType::Users],
-                    replied_user: false,
-                    roles: vec![],
-                    users: vec![],
-                }),
-                content: None,
-                embeds: Some(vec![extension_request_embed]),
-                flags: Some(MessageFlags::EPHEMERAL),
-            },
-            applied_tags: extension_request_tags,
+        let client = Client::builder().build();
+
+        let forum_thread_request = match client
+            .create_forum_thread(
+                Id::new(CONTEXT.settings.read().unwrap().channel_id),
+                &extension_request_title,
+            )
+            .applied_tags(&extension_request_tags)
+            .message()
+            .embeds(&[embed])
+            .try_into_request()
+        {
+            Ok(forum_thread_request) => forum_thread_request,
+            Err(err) => {
+                return Err(format!(
+                    "An error occured while making a forum thread request: {err}"
+                ));
+            }
         };
 
-        let mut create_forum_thread_response = discord_request(&Requests::CreateForumThread((
+        let create_forum_thread_response = discord_request(&Requests::CreateForumThread((
             CONTEXT.settings.read().unwrap().channel_id,
-            simd_json::to_vec(&forum_thead).unwrap(),
+            Contents::Json(forum_thread_request.body().unwrap().to_owned()),
         )))?
         .unwrap();
 
-        match simd_json::from_slice::<Channel>(&mut create_forum_thread_response) {
+        match sonic_rs::from_slice::<Channel>(&create_forum_thread_response) {
             Ok(extension_request_thread) => Ok(extension_request_thread),
             Err(err) => Err(err.to_string()),
         }
     }
 
-    fn validate_url(embed: &mut Embed, url_str: &str) -> Result<Url, ()> {
-        let url = match Url::parse(url_str) {
-            Ok(url) => url,
+    fn validate_url(
+        interaction_create: &InteractionCreate,
+        url_str: &str,
+    ) -> Result<Option<Url>, String> {
+        let embed = match Url::parse(url_str) {
+            Ok(url) => {
+                if url.scheme() == "https" {
+                    return Ok(Some(url));
+                } else {
+                    let mut embed = Self::base_embed(interaction_create);
+
+                    embed.title = Some(String::from("URL Error"));
+                    embed.description = Some(String::from(
+                        "The provided URL did not use the https origin.",
+                    ));
+
+                    embed
+                }
+            }
             Err(err) => {
+                let mut embed = Self::base_embed(interaction_create);
+
                 embed.title = Some(String::from("URL Error"));
                 embed.description =
                     Some(format!("The provided URL was not valid, error: {}", &err));
-                return Err(());
+
+                embed
             }
         };
 
-        if url.scheme() != "https" {
-            embed.title = Some(String::from("URL Error"));
-            embed.description = Some(String::from(
-                "The provided URL did not use the https origin.",
-            ));
-            return Err(());
-        }
+        let client = Client::builder().build();
 
-        Ok(url)
+        let response_message_request = match client
+            .create_message(interaction_create.channel.as_ref().unwrap().id)
+            .flags(MessageFlags::EPHEMERAL)
+            .embeds(&[embed])
+            .try_into_request()
+        {
+            Ok(response_message_request) => response_message_request,
+            Err(err) => {
+                return Err(format!(
+                    "An error occured while building the response message request: {err}"
+                ));
+            }
+        };
+
+        discord_request(
+            &discord_bot::plugin::discord_types::Requests::UpdateInteractionOriginal((
+                interaction_create.application_id.get(),
+                interaction_create.token.clone(),
+                response_message_request.body().unwrap().to_owned(),
+            )),
+        )?;
+
+        Ok(None)
     }
 }
 

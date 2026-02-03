@@ -212,12 +212,12 @@ impl Guest for Plugin {
         }
 
         Ok(RegistrationsRequest {
-            discord_events: RegistrationsRequestDiscordEvents {
-                interaction_create: RegistrationsRequestInteractionCreate {
-                    application_commands: commands,
-                    message_components: vec![],
-                    modals: vec![],
-                },
+            discord_events: Some(RegistrationsRequestDiscordEvents {
+                interaction_create: Some(RegistrationsRequestInteractionCreate {
+                    application_commands: Some(commands),
+                    message_components: None,
+                    modals: None,
+                }),
                 message_create: supported_registrations
                     .contains(SupportedRegistrations::DISCORD_EVENT_MESSAGE_CREATE)
                     && settings.cat_message_response_chance != 0,
@@ -227,9 +227,9 @@ impl Guest for Plugin {
                 thread_member_update: false,
                 thread_members_update: false,
                 thread_update: false,
-            },
-            scheduled_jobs: scheduled_jobs.into_iter().collect(),
-            dependency_functions: vec![String::from("request_cat")],
+            }),
+            scheduled_jobs: Some(scheduled_jobs.into_iter().collect()),
+            dependency_functions: Some(vec![String::from("request_cat")]),
         })
     }
 
