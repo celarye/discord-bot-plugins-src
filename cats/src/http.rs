@@ -1,7 +1,11 @@
 use std::env;
 
 use serde::Deserialize;
-use waki::Client;
+
+use wstd::{
+    http::{Client, Request},
+    runtime::block_on,
+};
 
 use crate::CONTEXT;
 
@@ -93,29 +97,35 @@ impl HttpClient {
             None => uri.push_str("search"),
         }
 
-        let request = self
-            .client
-            .get(&uri)
-            .header("x-api-key", env::var("API_KEY").unwrap());
-
-        let response = match request.send() {
-            Ok(response) => response,
+        let request = match Request::get(&uri)
+            .header("x-api-key", env::var("API_KEY").unwrap())
+            .body(())
+        {
+            Ok(request) => request,
             Err(err) => {
                 return Err(format!(
-                    "An error occured while making the HTTP request, error: {}",
-                    &err,
+                    "An error occured while building the HTTP request: {err}"
                 ));
             }
         };
 
-        if response.status_code() != 200 {
+        let mut response = match block_on(self.client.send(request)) {
+            Ok(response) => response,
+            Err(err) => {
+                return Err(format!(
+                    "An error occured while making the HTTP request: {err}"
+                ));
+            }
+        };
+
+        if response.status() != 200 {
             return Err(format!(
                 "The HTTP response returned an unwanted status code: {}",
-                &response.status_code(),
+                response.status(),
             ));
         }
 
-        let mut response_body = match response.body() {
+        let response_body = match block_on(response.body_mut().contents()) {
             Ok(response_body) => response_body,
             Err(err) => {
                 return Err(format!(
@@ -125,7 +135,7 @@ impl HttpClient {
             }
         };
 
-        match simd_json::from_slice::<Vec<CatResponse>>(&mut response_body) {
+        match sonic_rs::from_slice::<Vec<CatResponse>>(response_body) {
             Ok(cat_responses) => Ok(cat_responses),
             Err(err) => Err(format!(
                 "An error occured while deserializing the HTTP response body, error: {}",

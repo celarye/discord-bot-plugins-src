@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["automod", "cats", "extension-requests", "support"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+sonic-rs = "0.5"
+twilight-http = { git = "https://github.com/twilight-rs/twilight" }
+twilight-model = { git = "https://github.com/twilight-rs/twilight" }
+wit-bindgen = "0.53"
+wstd = "0.6"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -43,7 +43,7 @@ wit_bindgen::generate!({ path: "../wit" });
 
 use crate::{
     discord_bot::plugin::{
-        discord_types::Requests,
+        discord_types::{Contents, Requests},
         host_functions::discord_request,
         plugin_types::{
             RegistrationsRequest, RegistrationsRequestDiscordEvents,
@@ -240,20 +240,20 @@ impl Guest for Plugin {
         ];
 
         Ok(RegistrationsRequest {
-            discord_events: RegistrationsRequestDiscordEvents {
-                interaction_create: RegistrationsRequestInteractionCreate {
-                    application_commands: commands,
-                    message_components: vec![
+            discord_events: Some(RegistrationsRequestDiscordEvents {
+                interaction_create: Some(RegistrationsRequestInteractionCreate {
+                    application_commands: Some(commands),
+                    message_components: Some(vec![
                         String::from("get-support-question"),
                         String::from("get-support-bug"),
                         String::from("get-support-enhancement"),
-                    ],
-                    modals: vec![
+                    ]),
+                    modals: Some(vec![
                         String::from("support-question"),
                         String::from("support-bug"),
                         String::from("support-enhancement"),
-                    ],
-                },
+                    ]),
+                }),
                 message_create: false,
                 thread_create: false,
                 thread_delete: false,
@@ -261,13 +261,13 @@ impl Guest for Plugin {
                 thread_member_update: false,
                 thread_members_update: false,
                 thread_update: false,
-            },
-            scheduled_jobs: vec![],
-            dependency_functions: vec![],
+            }),
+            scheduled_jobs: None,
+            dependency_functions: None,
         })
     }
 
-    fn shutdown() -> Result<(), _rt::String> {
+    fn shutdown() -> Result<(), String> {
         Ok(())
     }
 
@@ -688,7 +688,7 @@ impl Plugin {
             support_question_thread.id
         ));
 
-        let client = DiscordClient::new();
+        let client = DiscordClient::builder().build();
 
         let request = match client
             .create_message(interaction_create.channel.as_ref().unwrap().id)
@@ -857,7 +857,7 @@ impl Plugin {
     ) -> Result<Channel, String> {
         let mut attachments = vec![];
 
-        let client = DiscordClient::new();
+        let client = DiscordClient::builder().build();
 
         for file_id in file_ids {
             let file = modal_interaction_data
@@ -939,10 +939,15 @@ impl Plugin {
             }
         };
 
-        // FIXME: use form instead of body when attachments are included
+        let content = if file_ids.is_empty() {
+            Contents::Form(request.body().unwrap().to_owned())
+        } else {
+            Contents::Form(request.form().unwrap().to_owned().build())
+        };
+
         let create_forum_thread_response = discord_request(&Requests::CreateForumThread((
             CONTEXT.settings.read().unwrap().channel_id,
-            request.body().unwrap_or(&[]).to_vec(),
+            content,
         )))?
         .unwrap();
 

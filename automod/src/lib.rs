@@ -230,7 +230,7 @@ impl Guest for Plugin {
         })
     }
 
-    fn shutdown() -> Result<(), _rt::String> {
+    fn shutdown() -> Result<(), String> {
         Ok(())
     }
 

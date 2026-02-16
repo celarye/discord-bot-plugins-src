@@ -126,7 +126,7 @@ static CONTEXT: LazyLock<Plugin> = LazyLock::new(|| Plugin {
 
 impl Guest for Plugin {
     fn initialization(
-        mut settings: Vec<u8>,
+        settings: Vec<u8>,
         supported_registrations: SupportedRegistrations,
     ) -> Result<RegistrationsRequest, String> {
         if env::var("API_KEY").is_err() {
@@ -135,7 +135,7 @@ impl Guest for Plugin {
             ));
         }
 
-        let settings = match simd_json::from_slice::<PluginSettings>(&mut settings) {
+        let settings = match sonic_rs::from_slice::<PluginSettings>(&settings) {
             Ok(settings) => settings,
             Err(err) => {
                 return Err(format!(
@@ -154,7 +154,7 @@ impl Guest for Plugin {
             && settings.cats_on_demand
         {
             commands.push(
-                simd_json::to_vec(&Command {
+                sonic_rs::to_vec(&Command {
                     application_id: None,
                     contexts: Some(vec![
                         InteractionContextType::Guild,
@@ -233,15 +233,15 @@ impl Guest for Plugin {
         })
     }
 
-    fn shutdown() -> Result<(), _rt::String> {
+    fn shutdown() -> Result<(), String> {
         todo!();
     }
 
     fn discord_event(event: DiscordEvents) -> Result<(), String> {
         match event {
-            DiscordEvents::InteractionCreate(mut interaction) => {
+            DiscordEvents::InteractionCreate(interaction) => {
                 let interaction =
-                    Box::new(simd_json::from_slice::<InteractionCreate>(&mut interaction).unwrap());
+                    Box::new(sonic_rs::from_slice::<InteractionCreate>(&interaction).unwrap());
 
                 match interaction.data.as_ref() {
                     Some(InteractionData::ApplicationCommand(command_data)) => {
@@ -256,9 +256,8 @@ impl Guest for Plugin {
                     _ => unimplemented!(),
                 }
             }
-            DiscordEvents::MessageCreate(mut message) => {
-                let message =
-                    Box::new(simd_json::from_slice::<MessageCreate>(&mut message).unwrap());
+            DiscordEvents::MessageCreate(message) => {
+                let message = Box::new(sonic_rs::from_slice::<MessageCreate>(&message).unwrap());
 
                 if message.0.content.to_lowercase().contains("cat") {
                     return CONTEXT.cat_message(message);
@@ -310,6 +309,7 @@ impl Plugin {
                             flags: None,
                             title: None,
                             tts: None,
+                            poll: None,
                         };
 
                         let interaction_response = InteractionResponse {
@@ -321,7 +321,7 @@ impl Plugin {
                             interaction.id.get(),
                             interaction.token.clone(),
                             true,
-                            simd_json::to_vec(&interaction_response).unwrap(),
+                            sonic_rs::to_vec(&interaction_response).unwrap(),
                         )));
                     }
                     Err(err) => {
@@ -340,6 +340,7 @@ impl Plugin {
                             flags: None,
                             title: None,
                             tts: None,
+                            poll: None,
                         };
 
                         let interaction_response = InteractionResponse {
@@ -351,7 +352,7 @@ impl Plugin {
                             interaction.id.get(),
                             interaction.token.clone(),
                             true,
-                            simd_json::to_vec(&interaction_response).unwrap(),
+                            sonic_rs::to_vec(&interaction_response).unwrap(),
                         )));
                     }
                 }

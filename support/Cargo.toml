@@ -4,13 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-sonic-rs = "0.5"
-twilight-http = { git = "https://github.com/celarye/twilight", default-features = false }
-twilight-model = { git = "https://github.com/celarye/twilight" }
-url = "2"
-wit-bindgen = { version = "0.51", features = ["async"] }
-wstd = "0.6.5"
+serde.workspace = true
+sonic-rs.workspace = true
+twilight-http.workspace = true
+twilight-model.workspace = true
+wit-bindgen.workspace = true
+wstd.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

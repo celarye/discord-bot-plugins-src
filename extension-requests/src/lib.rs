@@ -187,7 +187,7 @@ impl Guest for Plugin {
         })
     }
 
-    fn shutdown() -> Result<(), _rt::String> {
+    fn shutdown() -> Result<(), String> {
         Ok(())
     }
 
@@ -391,7 +391,7 @@ impl Plugin {
 
         let extension_request_thread = Self::create_forum_thread(
             interaction_create,
-            extension_request_title,
+            &extension_request_title,
             &url,
             extension_request_website_type,
             extension_request_reason,
@@ -613,14 +613,14 @@ impl Plugin {
 
     fn create_forum_thread(
         interaction_create: &InteractionCreate,
-        extension_request_title: String,
+        extension_request_title: &str,
         url: &Url,
         extension_request_website_type: &ModalInteractionStringSelect,
         extension_request_reason: &ModalInteractionTextInput,
     ) -> Result<Channel, String> {
         let mut embed = Self::base_embed(interaction_create);
 
-        embed.title = Some(extension_request_title.clone());
+        embed.title = Some(extension_request_title.to_string());
         embed.url = Some(url.to_string());
 
         let mut extension_request_tags = vec![];
@@ -644,7 +644,7 @@ impl Plugin {
         let forum_thread_request = match client
             .create_forum_thread(
                 Id::new(CONTEXT.settings.read().unwrap().channel_id),
-                &extension_request_title,
+                extension_request_title,
             )
             .applied_tags(&extension_request_tags)
             .message()
@@ -679,16 +679,16 @@ impl Plugin {
             Ok(url) => {
                 if url.scheme() == "https" {
                     return Ok(Some(url));
-                } else {
-                    let mut embed = Self::base_embed(interaction_create);
-
-                    embed.title = Some(String::from("URL Error"));
-                    embed.description = Some(String::from(
-                        "The provided URL did not use the https origin.",
-                    ));
-
-                    embed
                 }
+
+                let mut embed = Self::base_embed(interaction_create);
+
+                embed.title = Some(String::from("URL Error"));
+                embed.description = Some(String::from(
+                    "The provided URL did not use the HTTPS origin. URLs should always start with \"https://\".",
+                ));
+
+                embed
             }
             Err(err) => {
                 let mut embed = Self::base_embed(interaction_create);

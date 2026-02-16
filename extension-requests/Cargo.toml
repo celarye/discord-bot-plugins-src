@@ -1,15 +1,16 @@
 [package]
 name = "extension-requests"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-sonic-rs = "0.5"
-twilight-http = { git = "https://github.com/celarye/twilight" }
-twilight-model = { git = "https://github.com/celarye/twilight" }
+serde.workspace = true
+sonic-rs.workspace = true
+twilight-http.workspace = true
+twilight-model.workspace = true
+wit-bindgen.workspace = true
+
 url = "2"
-wit-bindgen = "0.51"
 
 [lib]
 crate-type = ["cdylib"]

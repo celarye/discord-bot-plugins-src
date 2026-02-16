@@ -1,14 +1,15 @@
 [package]
 name = "cats"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-simd-json = "0.17"
-twilight-model = "0.16"
-waki = "0.5"
-wit-bindgen = "0.47"
+serde.workspace = true
+sonic-rs.workspace = true
+twilight-http.workspace = true
+twilight-model.workspace = true
+wit-bindgen.workspace = true
+wstd.workspace = true
 
 [lib]
 crate-type = ["cdylib"]
